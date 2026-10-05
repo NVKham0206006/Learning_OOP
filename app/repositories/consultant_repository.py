@@ -1,66 +1,24 @@
+"""Consultant repository — data access cho Consultant."""
 from typing import Optional, List
-from .base_repository import BaseRepository
+from app.repositories.base_repository import BaseRepository
 from app.models.consultant import Consultant
 
 
 class ConsultantRepository(BaseRepository[Consultant]):
-    """Data access repository for Consultant entities."""
+    """Repository cho entity Consultant."""
 
     def get_by_id(self, entity_id: int) -> Optional[Consultant]:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT c.*, u.full_name, u.email
+            cursor.execute("""
+                SELECT c.*, u.username, u.email, u.full_name, u.phone AS user_phone
                 FROM consultants c
-                JOIN users u ON c.user_id = u.id
+                JOIN users u ON u.id = c.user_id
                 WHERE c.id = ?
-                """,
-                (entity_id,)
-            )
+            """, (entity_id,))
             row = cursor.fetchone()
-            if not row:
-                return None
-            return Consultant(
-                id=row["id"],
-                user_id=row["user_id"],
-                bio=row["bio"] or "",
-                qualifications=row["qualifications"] or "",
-                years_of_experience=row["years_of_experience"] or 0,
-                is_active=bool(row["is_active"]),
-                full_name=row["full_name"],
-                email=row["email"]
-            )
-        finally:
-            conn.close()
-
-    def get_by_user_id(self, user_id: int) -> Optional[Consultant]:
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT c.*, u.full_name, u.email
-                FROM consultants c
-                JOIN users u ON c.user_id = u.id
-                WHERE c.user_id = ?
-                """,
-                (user_id,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                return None
-            return Consultant(
-                id=row["id"],
-                user_id=row["user_id"],
-                bio=row["bio"] or "",
-                qualifications=row["qualifications"] or "",
-                years_of_experience=row["years_of_experience"] or 0,
-                is_active=bool(row["is_active"]),
-                full_name=row["full_name"],
-                email=row["email"]
-            )
+            return self._row_to_entity(row) if row else None
         finally:
             conn.close()
 
@@ -68,28 +26,45 @@ class ConsultantRepository(BaseRepository[Consultant]):
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT c.*, u.full_name, u.email
+            cursor.execute("""
+                SELECT c.*, u.username, u.email, u.full_name, u.phone AS user_phone
                 FROM consultants c
-                JOIN users u ON c.user_id = u.id
-                ORDER BY c.id ASC
-                """
-            )
-            rows = cursor.fetchall()
-            return [
-                Consultant(
-                    id=r["id"],
-                    user_id=r["user_id"],
-                    bio=r["bio"] or "",
-                    qualifications=r["qualifications"] or "",
-                    years_of_experience=r["years_of_experience"] or 0,
-                    is_active=bool(r["is_active"]),
-                    full_name=r["full_name"],
-                    email=r["email"]
-                )
-                for r in rows
-            ]
+                JOIN users u ON u.id = c.user_id
+                ORDER BY u.full_name ASC
+            """)
+            return [self._row_to_entity(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def get_by_user_id(self, user_id: int) -> Optional[Consultant]:
+        """Tìm consultant theo user_id."""
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT c.*, u.username, u.email, u.full_name, u.phone AS user_phone
+                FROM consultants c
+                JOIN users u ON u.id = c.user_id
+                WHERE c.user_id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+            return self._row_to_entity(row) if row else None
+        finally:
+            conn.close()
+
+    def search_by_expertise(self, keyword: str) -> List[Consultant]:
+        """Tìm consultant theo chuyên môn."""
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT c.*, u.username, u.email, u.full_name, u.phone AS user_phone
+                FROM consultants c
+                JOIN users u ON u.id = c.user_id
+                WHERE LOWER(c.expertise) LIKE LOWER(?)
+                ORDER BY u.full_name ASC
+            """, (f"%{keyword}%",))
+            return [self._row_to_entity(r) for r in cursor.fetchall()]
         finally:
             conn.close()
 
@@ -97,38 +72,48 @@ class ConsultantRepository(BaseRepository[Consultant]):
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO consultants (user_id, bio, qualifications, years_of_experience, is_active)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    consultant.user_id,
-                    consultant.bio,
-                    consultant.qualifications,
-                    consultant.years_of_experience,
-                    int(consultant.is_active)
-                )
-            )
+            cursor.execute("""
+                INSERT INTO consultants (user_id, expertise, bio, phone)
+                VALUES (?, ?, ?, ?)
+            """, (consultant.user_id, consultant.expertise,
+                  consultant.bio, consultant.phone))
             conn.commit()
             return cursor.lastrowid
         finally:
             conn.close()
 
-    def update_expertise(self, user_id: int, bio: str, qualifications: str, years_of_experience: int) -> bool:
+    def update_expertise(self, consultant_id: int, qualifications: str, bio: str,
+                         years_of_experience: int = None) -> bool:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE consultants
-                SET bio = ?, qualifications = ?, years_of_experience = ?
-                WHERE user_id = ?
-                """,
-                (bio, qualifications, years_of_experience, user_id)
-            )
+            if years_of_experience is not None:
+                cursor.execute("""
+                    UPDATE consultants
+                    SET qualifications = ?, bio = ?, years_of_experience = ?
+                    WHERE id = ?
+                """, (qualifications, bio, years_of_experience, consultant_id))
+            else:
+                cursor.execute("""
+                    UPDATE consultants
+                    SET qualifications = ?, bio = ?
+                    WHERE id = ?
+                """, (qualifications, bio, consultant_id))
             conn.commit()
             return cursor.rowcount > 0
         finally:
             conn.close()
 
+    def _row_to_entity(self, row) -> Consultant:
+        keys = row.keys()
+        return Consultant(
+            id=row["id"],
+            user_id=row["user_id"],
+            bio=row["bio"],
+            qualifications=row["qualifications"] if "qualifications" in keys else None,
+            years_of_experience=row["years_of_experience"] if "years_of_experience" in keys else 0,
+            is_active=bool(row["is_active"]) if "is_active" in keys else True,
+            username=row["username"] if "username" in keys else None,
+            email=row["email"] if "email" in keys else None,
+            full_name=row["full_name"] if "full_name" in keys else None,
+        )

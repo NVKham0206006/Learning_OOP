@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Trang chủ{% endblock %}
+{% block content %}
+<div class="p-5 mb-4 bg-primary text-white rounded-3">
+    <h1 class="display-5">🛡️ Phòng chống Ma túy Cộng đồng</h1>
+    <p class="lead">Hệ thống hỗ trợ cộng đồng trong công tác phòng ngừa và nhận thức về ma túy.</p>
+    <a href="{{ url_for('assessment.select') }}" class="btn btn-light btn-lg">Làm bài đánh giá nguy cơ</a>
+</div>
+
+<h2>Khóa học nổi bật</h2>
+<div class="row g-3 mb-5">
+    {% for course in courses %}
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="card-title">{{ course.title }}</h6>
+                <p class="card-text small text-muted">{{ course.description[:80] }}...</p>
+                <a href="{{ url_for('course.detail', course_id=course.id) }}"
+                   class="btn btn-sm btn-outline-primary">Xem</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<h2>Chuyên gia tư vấn</h2>
+<div class="row g-3">
+    {% for c in consultants %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5>{{ c.full_name }}</h5>
+                <p class="text-muted small">{{ c.qualifications }}</p>
+                <a href="{{ url_for('consultant.detail', consultant_id=c.id) }}"
+                   class="btn btn-sm btn-outline-primary">Xem lịch</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
